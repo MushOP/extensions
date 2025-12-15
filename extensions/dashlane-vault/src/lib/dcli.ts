@@ -17,12 +17,18 @@ import {
   getErrorString,
 } from "@/helper/error";
 import { Device, VaultCredential, VaultCredentialSchema, VaultNote, VaultNoteSchema } from "@/types/dcli";
+import os from "os";
+import path from "path";
 
 const preferences = getPreferenceValues<Preferences>();
 const cliQueue = new PQueue({ concurrency: 1 });
 
 const CLI_PATH = preferences.cliPath;
 const CLI_VERSION = getCLIVersion();
+
+const IS_WIN = process.platform === "win32";
+const IS_MAC = process.platform === "darwin";
+const CLI_TIMEOUT_MS = 15_000;
 
 async function dcli(...args: string[]) {
   if (!CLI_PATH) {
@@ -35,19 +41,9 @@ async function dcli(...args: string[]) {
 
   return cliQueue.add<string>(async () => {
     try {
-      const { stdout } = await execa(CLI_PATH, args, {
-        timeout: 15_000,
-        ...(preferences.masterPassword && {
-          env: {
-            DASHLANE_MASTER_PASSWORD: preferences.masterPassword,
-          },
-        }),
-      });
-
-      if (preferences.biometrics) {
-        execaCommand("open -a Raycast.app");
-      }
-
+      const env = buildDashlaneEnv(preferences);
+      const stdout = await runDashlaneCli(args, env);
+      openRaycastWithBiometrics();
       return stdout;
     } catch (error) {
       if (error instanceof ExecaError) {
@@ -239,5 +235,39 @@ async function getCLIVersion() {
     return result.stdout;
   } catch {
     return undefined;
+  }
+}
+
+function buildDashlaneEnv(preferences: Preferences): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...(preferences.masterPassword ? { DASHLANE_MASTER_PASSWORD: preferences.masterPassword } : {}),
+  };
+
+  if (IS_WIN) {
+    const home = env.USERPROFILE ?? os.homedir();
+    env.USERPROFILE ??= home;
+    env.APPDATA ??= path.join(home, "AppData", "Roaming");
+    env.LOCALAPPDATA ??= path.join(home, "AppData", "Local");
+  }
+
+  return env;
+}
+
+async function runDashlaneCli(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
+  if (IS_WIN) {
+    const quotedPath = CLI_PATH.includes(" ") ? `"${CLI_PATH}"` : CLI_PATH;
+    const command = [quotedPath, ...args].join(" ");
+    const { stdout } = await execaCommand(command, { timeout: CLI_TIMEOUT_MS, env });
+    return stdout;
+  }
+
+  const { stdout } = await execa(CLI_PATH, args, { timeout: CLI_TIMEOUT_MS, env });
+  return stdout;
+}
+
+function openRaycastWithBiometrics() {
+  if (preferences.biometrics && IS_MAC) {
+    void execaCommand("open -a Raycast.app");
   }
 }

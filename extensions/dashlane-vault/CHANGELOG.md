@@ -1,6 +1,6 @@
 # Dashlane Vault Changelog
 
-## [Added windows support] - 2025-12-17
+## [Added windows support] - {PR_MERGE_DATE}
 
 - Refactored dcli to support both windows and mac
 

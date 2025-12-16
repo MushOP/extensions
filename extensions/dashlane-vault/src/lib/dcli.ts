@@ -255,13 +255,6 @@ function buildDashlaneEnv(preferences: Preferences): NodeJS.ProcessEnv {
 }
 
 async function runDashlaneCli(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
-  if (IS_WIN) {
-    const quotedPath = CLI_PATH.includes(" ") ? `"${CLI_PATH}"` : CLI_PATH;
-    const command = [quotedPath, ...args].join(" ");
-    const { stdout } = await execaCommand(command, { timeout: CLI_TIMEOUT_MS, env });
-    return stdout;
-  }
-
   const { stdout } = await execa(CLI_PATH, args, { timeout: CLI_TIMEOUT_MS, env });
   return stdout;
 }

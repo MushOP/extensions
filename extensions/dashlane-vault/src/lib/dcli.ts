@@ -42,8 +42,12 @@ async function dcli(...args: string[]) {
   return cliQueue.add<string>(async () => {
     try {
       const env = buildDashlaneEnv(preferences);
-      const stdout = await runDashlaneCli(args, env);
-      openRaycastWithBiometrics();
+      const { stdout } = await execa(CLI_PATH, args, { timeout: CLI_TIMEOUT_MS, env });
+
+      if (preferences.biometrics && IS_MAC) {
+        execaCommand("open -a Raycast.app");
+      }
+
       return stdout;
     } catch (error) {
       if (error instanceof ExecaError) {
@@ -252,15 +256,4 @@ function buildDashlaneEnv(preferences: Preferences): NodeJS.ProcessEnv {
   }
 
   return env;
-}
-
-async function runDashlaneCli(args: string[], env: NodeJS.ProcessEnv): Promise<string> {
-  const { stdout } = await execa(CLI_PATH, args, { timeout: CLI_TIMEOUT_MS, env });
-  return stdout;
-}
-
-function openRaycastWithBiometrics() {
-  if (preferences.biometrics && IS_MAC) {
-    void execaCommand("open -a Raycast.app");
-  }
 }
